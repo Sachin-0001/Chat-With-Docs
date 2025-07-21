@@ -28,7 +28,6 @@ def load_documents(doc_folder):
     return docs
 
 
-@st.cache_resource
 def create_vectorstore(_docs):
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
     splits = text_splitter.split_documents(_docs)
