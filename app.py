@@ -3,6 +3,7 @@ import streamlit as st
 from langchain_groq import ChatGroq
 from langchain.chains import RetrievalQA
 from utils import load_documents, create_vectorstore
+import tempfile
 
 st.set_page_config(page_title="Chat with Docs", page_icon="📄")
 st.title("📄 Chat with Your Documents")
@@ -13,34 +14,40 @@ uploaded_files = st.file_uploader(
 )
 
 if uploaded_files:
-    os.makedirs("docs", exist_ok=True)
+    # Use a session-specific temporary directory to store uploaded files
+    if "temp_dir" not in st.session_state:
+        st.session_state.temp_dir = tempfile.mkdtemp()
+
     for uploaded_file in uploaded_files:
-        file_path = os.path.join("docs", uploaded_file.name)
+        file_path = os.path.join(st.session_state.temp_dir, uploaded_file.name)
         with open(file_path, "wb") as f:
             f.write(uploaded_file.getbuffer())
     st.success(f"Uploaded {len(uploaded_files)} file(s). Click below to process.")
 
 # 🔄 Load and index documents
 if st.button("📊 Index Documents"):
-    with st.spinner("⬆️ Indexing documents..."):
-        try:
-            docs = load_documents("docs")
-            if not docs:
-                st.warning("No valid documents found in the 'docs' folder.")
-            else:
-                vectordb = create_vectorstore(docs)
-                if vectordb:
-                    if not st.secrets.get("GROQ_API_KEY"):
-                        st.error("GROQ_API_KEY not found. Please add it to your Streamlit secrets.")
-                        st.stop()
-                    llm = ChatGroq(api_key=st.secrets["GROQ_API_KEY"], model_name="llama3-70b-8192")
-                    qa = RetrievalQA.from_chain_type(llm=llm, retriever=vectordb.as_retriever())
-                    st.session_state.qa = qa
-                    st.success("✅ Documents indexed and ready!")
+    if "temp_dir" not in st.session_state or not os.listdir(st.session_state.temp_dir):
+        st.warning("Please upload at least one document to index.")
+    else:
+        with st.spinner("⬆️ Indexing documents..."):
+            try:
+                docs = load_documents(st.session_state.temp_dir)
+                if not docs:
+                    st.warning("No valid documents found in the 'docs' folder.")
                 else:
-                    st.warning("Could not extract any text from the documents. Please check the files.")
-        except Exception as e:
-            st.error(f"❌ Failed to index documents: {e}")
+                    vectordb = create_vectorstore(docs)
+                    if vectordb:
+                        if not st.secrets.get("GROQ_API_KEY"):
+                            st.error("GROQ_API_KEY not found. Please add it to your Streamlit secrets.")
+                            st.stop()
+                        llm = ChatGroq(api_key=st.secrets["GROQ_API_KEY"], model_name="llama3-70b-8192")
+                        qa = RetrievalQA.from_chain_type(llm=llm, retriever=vectordb.as_retriever())
+                        st.session_state.qa = qa
+                        st.success("✅ Documents indexed and ready!")
+                    else:
+                        st.warning("Could not extract any text from the documents. Please check the files.")
+            except Exception as e:
+                st.error(f"❌ Failed to index documents: {e}")
 
 # 🔍 Chat with indexed content
 if "qa" in st.session_state:
