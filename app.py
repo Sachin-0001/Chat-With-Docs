@@ -30,6 +30,9 @@ if st.button("📊 Index Documents"):
             else:
                 vectordb = create_vectorstore(docs)
                 if vectordb:
+                    if not st.secrets.get("GROQ_API_KEY"):
+                        st.error("GROQ_API_KEY not found. Please add it to your Streamlit secrets.")
+                        st.stop()
                     llm = ChatGroq(api_key=st.secrets["GROQ_API_KEY"], model_name="llama3-70b-8192")
                     qa = RetrievalQA.from_chain_type(llm=llm, retriever=vectordb.as_retriever())
                     st.session_state.qa = qa
