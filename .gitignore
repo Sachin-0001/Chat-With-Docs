@@ -1,0 +1,14 @@
+# Secrets and keys
+.env
+.streamlit/secrets.toml
+
+# Runtime docs folder
+docs/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# VSCode & system files
+.vscode/
+.DS_Store
