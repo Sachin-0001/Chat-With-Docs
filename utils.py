@@ -28,9 +28,9 @@ def load_documents(doc_folder):
     return docs
 
 
-def create_vectorstore(_docs):
+def create_vectorstore(docs):
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
-    splits = text_splitter.split_documents(_docs)
+    splits = text_splitter.split_documents(docs)
 
     # Extract page_content, convert to string, and filter out empty or whitespace-only strings.
     texts = [str(doc.page_content).strip() for doc in splits]
