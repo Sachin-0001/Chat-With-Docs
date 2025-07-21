@@ -20,6 +20,8 @@ if uploaded_files:
 # 🔄 Load and index documents
 if st.button("📊 Index Documents") or "qa" not in st.session_state:
     with st.spinner("⬆️ Indexing documents..."):
+        if not os.path.exists("docs"):
+            os.makedirs("docs")
         docs = load_documents("docs")
         vectordb = create_vectorstore(docs)
         llm = ChatGroq(api_key=GROQ_API_KEY, model_name="llama3-70b-8192")
