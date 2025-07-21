@@ -1,6 +1,7 @@
 # Secrets and keys
 .env
 .streamlit/secrets.toml
+.streamlit/config.toml
 
 # Runtime docs folder
 docs/
