@@ -1,8 +1,17 @@
 import os
+import streamlit as st
 from langchain.document_loaders import PyPDFLoader, TextLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.vectorstores import FAISS
 from langchain.embeddings import HuggingFaceEmbeddings
+
+
+@st.cache_resource
+def load_embeddings():
+    return HuggingFaceEmbeddings(
+        model_name="all-MiniLM-L6-v2",
+        model_kwargs={'device': 'cpu'}
+    )
 
 
 def load_documents(doc_folder):
@@ -19,9 +28,21 @@ def load_documents(doc_folder):
     return docs
 
 
+@st.cache_resource
 def create_vectorstore(docs):
-    splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
-    chunks = splitter.split_documents(docs)
-    embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/paraphrase-MiniLM-L3-v2",model_kwargs={"device": "cpu"})
-    vectorstore = FAISS.from_documents(chunks, embeddings)
-    return vectorstore
+    text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
+    splits = text_splitter.split_documents(docs)
+
+    # Extract page_content, convert to string, and filter out empty or whitespace-only strings.
+    texts = [str(doc.page_content).strip() for doc in splits]
+    texts = [text for text in texts if text]
+
+    if not texts:
+        return None
+
+    embeddings = load_embeddings()
+
+    # Use FAISS.from_texts since we have a clean list of strings.
+    vectordb = FAISS.from_texts(texts=texts, embedding=embeddings)
+    return vectordb
+

@@ -13,3 +13,7 @@ __pycache__/
 # VSCode & system files
 .vscode/
 .DS_Store
+
+config.py
+
+### Python ###
