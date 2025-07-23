@@ -3,6 +3,7 @@ import streamlit as st
 from langchain_groq import ChatGroq
 from langchain.chains import RetrievalQA
 from utils import load_documents, create_vectorstore
+from langchain.document_loaders import PyPDFLoader, TextLoader
 import tempfile
 
 st.set_page_config(page_title="Chat with Docs", page_icon="📄")
@@ -13,27 +14,45 @@ uploaded_files = st.file_uploader(
     "Upload PDF or TXT files", type=["pdf", "txt"], accept_multiple_files=True
 )
 
-if uploaded_files:
-    # Use a session-specific temporary directory to store uploaded files
-    if "temp_dir" not in st.session_state:
-        st.session_state.temp_dir = tempfile.mkdtemp()
+# Track uploaded filenames and only clear QA chain if files change
+current_filenames = [f.name for f in uploaded_files] if uploaded_files else []
+if 'last_uploaded_filenames' not in st.session_state:
+    st.session_state.last_uploaded_filenames = []
 
+if current_filenames != st.session_state.last_uploaded_filenames:
+    st.session_state.qa = None
+    st.session_state.last_uploaded_filenames = current_filenames
+
+# Helper to load docs from in-memory files
+@st.cache_data(show_spinner=False)
+def load_docs_from_memory(uploaded_files):
+    docs = []
     for uploaded_file in uploaded_files:
-        file_path = os.path.join(st.session_state.temp_dir, uploaded_file.name)
-        with open(file_path, "wb") as f:
-            f.write(uploaded_file.getbuffer())
-    st.success(f"Uploaded {len(uploaded_files)} file(s). Click below to process.")
+        suffix = os.path.splitext(uploaded_file.name)[1].lower()
+        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp_file:
+            tmp_file.write(uploaded_file.getbuffer())
+            tmp_file.flush()
+            if suffix == ".pdf":
+                loader = PyPDFLoader(tmp_file.name)
+            elif suffix == ".txt":
+                loader = TextLoader(tmp_file.name)
+            else:
+                continue
+            docs.extend(loader.load())
+        os.unlink(tmp_file.name)
+    return docs
 
 # 🔄 Load and index documents
 if st.button("📊 Index Documents"):
-    if "temp_dir" not in st.session_state or not os.listdir(st.session_state.temp_dir):
+    st.session_state.qa = None  # Only clear QA chain when re-indexing
+    if not uploaded_files:
         st.warning("Please upload at least one document to index.")
     else:
         with st.spinner("⬆️ Indexing documents..."):
             try:
-                docs = load_documents(st.session_state.temp_dir)
+                docs = load_docs_from_memory(uploaded_files)
                 if not docs:
-                    st.warning("No valid documents found in the 'docs' folder.")
+                    st.warning("No valid documents found in the uploaded files.")
                 else:
                     vectordb = create_vectorstore(docs)
                     if vectordb:
@@ -50,7 +69,7 @@ if st.button("📊 Index Documents"):
                 st.error(f"❌ Failed to index documents: {e}")
 
 # 🔍 Chat with indexed content
-if "qa" in st.session_state:
+if "qa" in st.session_state and st.session_state.qa is not None:
     query = st.text_input("Ask a question about your documents:")
     if query:
         with st.spinner("⏳ Thinking..."):
